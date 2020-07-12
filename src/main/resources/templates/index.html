@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8"/>
+    <title>Chat intre useri si intre doi useri privati</title>
+    <link rel="stylesheet" href="/main.css"/>
+</head>
+<style>
+    #chatDisplay {
+        overflow-y: auto;
+    }
+</style>
+
+<body>
+
+<h1>Chat between multiple users or specific: for a specific user you have to send the message like: @name [message]</h1>
+<!-- tag::username[] -->
+Username:
+<input id="username" type="text"/>
+<button id="connect">Connect</button>
+<button id="disconnect" style="display: none">Disconnect</button>
+
+<div id="connect-to-user" style="display: none">
+    Connect to user:
+    <input id="username-to-connect" type="text"/>
+</div>
+<div>
+    <div id="chatBox" style="display: none">
+        Greetings!
+        <br/>
+        <textarea id="chatDisplay" rows="10" cols="80" disabled="true"></textarea>
+        <br/>
+        <input id="chatInput" type="text" style="width: 500px" value=""/>
+    </div>
+</div>
+
+<!-- tag::javascript[] -->
+<script th:inline="javascript">
+    /*BROWSER NOTIFICATIONS*/
+    function notifyMe(messages) {
+        // Let's check if the browser supports notifications
+        if (!("Notification" in window)) {
+            alert("This browser does not support desktop notification");
+        }
+
+        // Let's check whether notification permissions have already been granted
+        else if (Notification.permission === "granted") {
+            // If it's okay let's create a notification
+            var notification = new Notification(messages);
+        }
+
+        // Otherwise, we need to ask the user for permission
+        else if (Notification.permission !== "denied") {
+            Notification.requestPermission(function (permission) {
+                // If the user accepts, let's create a notification
+                if (permission === "granted") {
+                    var notification = new Notification(messages);
+                }
+            });
+        }
+
+        // At last, if the user has denied notifications, and you
+        // want to be respectful there is no need to bother them any more.
+    }
+
+    Notification.requestPermission().then(function (result) {
+        console.log(result);
+    });
+
+    /*
+     END BROWSER Notification
+     */
+
+    (function () {
+        // Register a handler for each button to make an AJAX call
+        document.querySelectorAll('button.comment').forEach(function (button) {
+            button.addEventListener('click', function () {
+                var comment = document.getElementById('comment-' + button.id);
+
+                var xhr = new XMLHttpRequest();
+                xhr.open('POST', /*[[@{'/comments'}]]*/'', true);
+
+                var formData = new FormData();
+                formData.append('comment', comment.value);
+                formData.append('imageId', button.id);
+
+                xhr.send(formData);
+
+                comment.value = '';
+            });
+        });
+
+        var outboundChatMessages = null;
+        var inboundChatMessages = null;
+        var socketUrl = 'ws://pc1703:9001';
+        var localhostUrl = 'ws://localhost:9001';
+        // var localhostUrl = 'ws://localhost:9001';
+        var apiUrl = 'http://79.112.17.87:9000/oauth/token';
+
+        //on click
+        document.getElementById('connect')
+            .addEventListener('click', function (e) {
+                socket();
+            });
+
+
+        //handle logic socket
+        function socket() {
+
+            document.getElementById('connect').style.display = 'none';
+            document.getElementById('disconnect').style.display = 'inline';
+            document.getElementById('connect-to-user').style.display = 'inline';
+
+            var usernameInput = document.getElementById('username');
+            var usernameToConnectInput = document.getElementById('username-to-connect');
+
+            document.getElementById('chatBox').style.display = 'inline';
+            outboundChatMessages = new WebSocket(localhostUrl + '/app/chatMessage.new?user=' + usernameInput.value);
+
+            outboundChatMessages.onopen = function (event) {
+                var JSONConnect = {
+                    "type": "USER_JOINED",
+                    "payload": {
+                        "user": {
+                            "username": usernameInput.value,
+                            "avatar": "https://robohash.org/" + usernameInput.value + ".png"
+                        }
+                    }
+                }
+                outboundChatMessages.send(JSON.stringify(JSONConnect));
+
+                document.getElementById('chatInput')
+                    .addEventListener('keypress', function (ev) {
+                        var key = ev.code;
+                        if (key == 'Enter') { // 13 is enter
+                            var chatInput = document.getElementById('chatInput');
+                            console.log('Publishing "' + chatInput.value + '"');
+                            if (usernameToConnectInput.value != '') {
+                                var JSONmessage = {
+                                    "type": "PRIVATE_CHAT_MESSAGE",
+                                    "payload": {
+                                        "user": {
+                                            "username": usernameInput.value,
+                                            "avatar": "https://robohash.org/" + usernameInput.value + ".png"
+                                        }, "targetUser": usernameToConnectInput.value, "message": chatInput.value
+                                    }
+                                }
+                            } else {
+                                var JSONmessage = {
+                                    "type": "CHAT_MESSAGE",
+                                    "payload": {
+                                        "user": {
+                                            "username": usernameInput.value,
+                                            "avatar": "https://robohash.org/" + usernameInput.value + ".png"
+                                        }, "message": chatInput.value
+                                    }
+                                }
+                            }
+                            console.log(JSON.stringify(JSONmessage));
+                            outboundChatMessages.send(JSON.stringify(JSONmessage));
+                            chatInput.value = '';
+                            chatInput.focus();
+                        }
+                    });
+            }
+
+            inboundChatMessages = new WebSocket(localhostUrl + '/topic/chatMessage.new?user=' + usernameInput.value);
+            inboundChatMessages.onmessage = function (event) {
+                console.log('Received ' + event.data);
+
+                var object = JSON.parse(event.data);
+                //  console.log(object);
+
+
+                var chatDisplay = document.getElementById('chatDisplay');
+                //
+                chatDisplay.scrollTop = chatDisplay.scrollHeight;
+
+                if (object.type == "CHAT_MESSAGE") {
+                    //
+                    shouldScroll = chatDisplay.scrollTop + chatDisplay.clientHeight === chatDisplay.scrollHeight;
+
+                    chatDisplay.value = chatDisplay.value + object.payload.user.username + ': ' + object.payload.message + '\n';
+
+                    if (!shouldScroll) {
+                        scrollToBottom();
+                    }
+                }
+
+                if (object.type == "SYSTEM_NOTIFICATION") {
+                    chatDisplay.value = chatDisplay.value + '[system_notification = ' + object.payload.message + ']' + '\n';
+                }
+                if (object.type == "PRIVATE_CHAT_MESSAGE") {
+
+                    //     alert("BUZZ: te cauta "+object.payload.user.username);
+                    if (object.properties.targetUser == usernameInput.value) {
+                        notifyMe('(' + object.payload.user.username + ') ' + '' + object.payload.message);
+                    }
+                    //
+                    shouldScroll = chatDisplay.scrollTop + chatDisplay.clientHeight === chatDisplay.scrollHeight;
+                    chatDisplay.value = chatDisplay.value + object.payload.user.username + ' [private]: ' + object.payload.message + '\n';
+                    if (!shouldScroll) {
+                        scrollToBottom();
+                    }
+                }
+                if (object.type == "USER_JOINED") {
+                    chatDisplay.value = chatDisplay.value + '[user_joined = ' + object.payload.user.username + ']' + '\n';
+                }
+                if (object.type == "USER_LEFT") {
+                    chatDisplay.value = chatDisplay.value + '[user_left = ' + object.payload.user.username + ']' + '\n';
+                }
+            };
+
+            // usernameInput.value = '';
+            document.getElementById('chatInput').focus();
+
+            document.getElementById('disconnect')
+                .addEventListener('click', function () {
+                    document.getElementById('connect').style.display = 'inline';
+                    document.getElementById('disconnect').style.display = 'none';
+                    document.getElementById('chatBox').style.display = 'none';
+
+                    if (outboundChatMessages != null) {
+                        console.log('disconnect outbound connection');
+                        outboundChatMessages.close();
+                    }
+                    if (inboundChatMessages != null) {
+                        console.log('disconnect inbound connection');
+                        inboundChatMessages.close();
+                    }
+                    location.reload();
+                });
+        }
+    })();
+</script>
+</body>
+</html>
