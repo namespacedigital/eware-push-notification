@@ -3,7 +3,7 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 
-	<groupId>org.project.startup</groupId>
+	<groupId>com.eware.pushnotification</groupId>
 	<artifactId>push-notification</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<packaging>jar</packaging>
@@ -22,7 +22,6 @@
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 		<java.version>11</java.version>
 		<jaxb-runtime.version>2.3.2</jaxb-runtime.version>
-        <eureka-client.version>2.2.3.RELEASE</eureka-client.version>
 	</properties>
 
 	<dependencies>
@@ -53,13 +52,6 @@
 			<optional>true</optional>
 		</dependency>
 		<!-- https://mvnrepository.com/artifact/org.springframework.data/spring-data-redis -->
-
-        <!--Eureka client-->
-        <dependency>
-            <groupId>org.springframework.cloud</groupId>
-            <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
-            <version>${eureka-client.version}</version>
-        </dependency>
 
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
